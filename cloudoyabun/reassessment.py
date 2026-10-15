@@ -53,13 +53,18 @@ class Reassessment:
 
     def compare(self, before_id, after_id):
         if before_id == after_id: raise ValueError('Choose two different imports')
-        before, after = self.service.artifact(before_id), self.service.artifact(after_id)
+        with self.db.connect() as con:
+            headers = [con.execute('SELECT adapter FROM artifacts WHERE id=?', (artifact_id,)).fetchone()
+                       for artifact_id in (before_id, after_id)]
+        if any(row is None for row in headers):
+            raise KeyError('Artifact not found')
+        before, after = headers
         if before['adapter'] != after['adapter']: raise ValueError('Compare imports from the same tool format')
         buckets = []
         with self.db.connect() as con:
             for artifact in (before_id, after_id):
                 group = defaultdict(list)
-                for row in con.execute('SELECT * FROM findings WHERE artifact_id=?', (artifact,)):
+                for row in con.execute('SELECT id,revision,title,native_status,severity,category,tags,disposition,priority,notes,severity_override,' + ','.join(IDENTITY) + ' FROM findings WHERE artifact_id=?', (artifact,)):
                     f = decoded(row)
                     key = tuple(f[k] for k in IDENTITY)
                     group[key].append(f)

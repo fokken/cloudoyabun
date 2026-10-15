@@ -87,3 +87,10 @@ def test_cli_cancellation_records_final_outcome(service, assessment, cancel_sign
         if proc.poll() is None:
             proc.kill()
             proc.wait()
+
+
+@pytest.mark.parametrize('timeout', [float('nan'), float('inf'), -float('inf')])
+def test_nonfinite_timeout_rejected(service, assessment, timeout):
+    with pytest.raises(ValueError):
+        execute(service.db, assessment['id'], 'test', ['unused-command'], timeout=timeout)
+    assert service.runs(assessment['id']) == []

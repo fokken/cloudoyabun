@@ -7,7 +7,10 @@ from dataclasses import dataclass, field
 def load_json(content):
     def invalid(value):
         raise ValueError(f"Invalid JSON constant: {value}")
-    return json.loads(content, parse_constant=invalid)
+    try:
+        return json.loads(content, parse_constant=invalid)
+    except RecursionError as exc:
+        raise ValueError('JSON nesting exceeds the supported limit') from exc
 
 
 @dataclass

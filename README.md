@@ -1,3 +1,5 @@
+<p align="center"><img src="cloudoyabun/static/logo.svg" alt="CloudOyabun assessment workbench" width="680"></p>
+
 # CloudOyabun
 
 A local workbench for cloud and Kubernetes security assessments. Run broad tool presets or import existing results, investigate native evidence, triage findings, and build a technical report. Tool output remains intact; sortable metadata and analyst decisions live alongside it.
@@ -45,7 +47,7 @@ Add `--dry-run` to inspect a scan command without executing it. To use a nondefa
 
 ## What you can do
 
-- Browse expandable check groups with provider and native severity; filter, search and bulk-tag findings.
+- Browse expandable check groups with provider and clearly labeled tool/analyst severity; filter, search and bulk-edit tags, category, disposition, notes and report inclusion.
 - Preserve original artifacts, individual native payloads, provenance and analyst decision history.
 - Inspect granular execution events, stdout/stderr, failures and import diagnostics.
 - Preview optional AI input, analyze selections or entire categories in batches, and review evidence-linked summaries and priorities. Custom/local OpenAI-compatible servers are supported; no provider endpoint is configured by default.
@@ -59,6 +61,7 @@ Add `--dry-run` to inspect a scan command without executing it. To use a nondefa
 - [Operations](docs/operations.md): installation, databases, backups and troubleshooting.
 - [CLI and integration reference](docs/development.md): commands, credentials and supported formats.
 - [Architecture](docs/architecture.md): modules, persistence and design boundaries.
+- [Review notes](docs/review.md): recent fixes, verification, and remaining priorities.
 
 ## Verification and limits
 

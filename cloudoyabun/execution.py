@@ -2,6 +2,7 @@
 
 import codecs
 import os
+import math
 import re
 import selectors
 import signal
@@ -69,7 +70,7 @@ def execute(db, assessment_id, tool, command, *, timeout=300, retries=0, redact_
         raise ValueError("The initial execution runner requires a POSIX host")
     service = Service(db)
     service.assessment(assessment_id)
-    if not command or timeout <= 0 or retries not in range(4):
+    if not command or not math.isfinite(timeout) or timeout <= 0 or type(retries) is not int or retries not in range(4):
         raise ValueError("Supply a command, positive timeout, and 0–3 retries")
     env = os.environ.copy()
     secrets = sensitive_values(command, env, redact_env)

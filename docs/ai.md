@@ -24,7 +24,7 @@ For OpenAI, set the base URL to `https://api.openai.com/v1`, select `responses`,
 
 ## Preview and data scope
 
-No AI request runs on startup or during preview. A preview freezes endpoint, protocol, model and input; configuration changes require a new preview. Metadata includes IDs/revisions, tool, title, provider, native severity/status, a separately labeled analyst severity override, check ID, service and category.
+No AI request runs on startup or during preview. A preview freezes endpoint, protocol, model and input; configuration or prompt-version changes require a new preview. Invalid URLs or ports leave AI disabled. Metadata includes IDs/revisions, tool, title, provider, native severity/status, a separately labeled analyst severity override, check ID, service and category.
 
 Optional native evidence adds the original finding payload, artifact/record locator and resource/environment identifiers. Structured fields whose names indicate credentials, secrets, tokens or private/API/access keys are redacted recursively. Known environment-secret values and common labeled token patterns are also removed from strings. Redaction is best-effort: arbitrary free text, identifiers or secrets under unexpected field names can remain. Inspect the preview before sending. Analyst notes, tags and assessment scope are excluded.
 
@@ -34,7 +34,7 @@ Native JSON above 12 KB is replaced with an explicitly marked excerpt. Excessive
 
 Prepare 1–2,000 findings, at most 8 MB total. Inputs are ordered by provider, check, environment and resource; batches are bounded by the chosen 1–100 findings and 100 KB. Choose smaller batches for local models. Byte limits are not token estimates; the selected model must still fit the prompt, schema and output.
 
-Each batch produces area summaries with source IDs. Citation IDs must belong to that batch. Completed results are saved before the next request. Multiple batches are combined hierarchically in bounded groups; synthesis citations must refer to findings cited by its input summaries. Every batch enters synthesis, but a summary may omit individual findings; it is not a coverage ledger. Inspect retained batch results for detail.
+Each batch produces area summaries with source IDs. Citation IDs must belong to that batch. Completed results are redacted as structured text values and saved before the next request; source citation IDs are preserved. Multiple batches are combined hierarchically in bounded groups; synthesis citations must refer to findings cited by its input summaries. Every batch enters synthesis, but a summary may omit individual findings; it is not a coverage ledger. Inspect retained batch results for detail.
 
 The model receives untrusted evidence with instructions to ignore embedded commands. No tools are provided. It cannot execute scanners, suppress records or write analyst decisions. Valid IDs establish traceability, not correctness; an analyst must verify that the cited evidence supports the claim.
 

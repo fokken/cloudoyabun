@@ -198,7 +198,11 @@ async function loadFindings() {
   $("next").disabled = state.offset + 50 >= data.total;
 }
 async function openFinding(id) {
-  state.finding = await api("/findings/" + id);
+  const assessment = state.assessment, request = (state.detailRequest || 0) + 1;
+  state.detailRequest = request;
+  const finding = await api("/findings/" + id);
+  if (assessment !== state.assessment || request !== state.detailRequest) return;
+  state.finding = finding;
   const f = state.finding, form = $("triage-form");
   $("suppression-state").textContent = f.suppressed ? "An active rule currently suppresses this finding. Manage rules in Repeat assessments." : "No active suppression applies.";
   $("suppress-reason").value = ""; $("suppress-expiry").value = ""; $("suppress-check").checked = false;
@@ -311,6 +315,7 @@ $("assessment-form").onsubmit = async event => {
 };
 $("assessment").onchange = guarded(async () => {
   state.assessment = $("assessment").value; ++state.request; ++state.logRequest;
+  $("finding-dialog").close(); state.finding = null;
   for (const key of ["search", "tool", "provider", "severity", "disposition", "category", "tag"]) $(key).value = "";
   $("selected-only").checked = false; $("notice").hidden = true; await refreshAssessment();
 });
@@ -401,13 +406,13 @@ function renderAI(item, config) {
   if (item.error) host.append(element("p", item.error, "form-error"));
   if (item.status === "draft") {
     host.append(element("p", `${item.plan.batches || 1} batches plus synthesis calls as needed. ${item.plan.include_native ? "Redacted native evidence included; oversized records are explicitly truncated." : "Metadata only."} Analyst notes are excluded. Inspect input for sensitive text. Selection does not establish complete assessment coverage.`));
-    const send = element("button", "Send to AI server", "primary"); send.disabled = !config.configured;
+    const send = element("button", "Send to AI server", "primary"); send.disabled = !config.configured || ["endpoint", "model", "protocol"].some(key => item[key] !== config[key]);
     send.onclick = guarded(async () => {
       send.disabled = true; send.textContent = "Analyzing…";
       try {
         const result = await api(`/assessments/${item.assessment_id}/ai/${item.id}/generate`, {method:"POST"});
-        if (state.assessment === item.assessment_id) { await loadAI(); renderAI(result, config); }
-      } finally { send.textContent = "Submitted — refresh history for status"; }
+        if (state.assessment === item.assessment_id && state.view === "ai") { await loadAI(); if (state.assessment === item.assessment_id && state.view === "ai") renderAI(result, config); }
+      } finally { send.textContent = "Refresh history to check request status"; }
     }); host.append(send);
   }
   if (item.status === "succeeded") {
@@ -425,7 +430,7 @@ function renderAI(item, config) {
       const button = element("button", `Mark ${status}`, "quiet");
       button.onclick = guarded(async () => {
         const result = await api(`/assessments/${item.assessment_id}/ai/${item.id}`, jsonOptions("PATCH", {status}));
-        if (state.assessment === item.assessment_id) { await loadAI(); renderAI(result, config); }
+        if (state.assessment === item.assessment_id && state.view === "ai") { await loadAI(); if (state.assessment === item.assessment_id && state.view === "ai") renderAI(result, config); }
       }); host.append(button);
     }
   }

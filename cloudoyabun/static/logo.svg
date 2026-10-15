@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="160" viewBox="0 0 680 160" role="img" aria-labelledby="title desc">
+  <title id="title">CloudOyabun</title>
+  <desc id="desc">CloudOyabun assessment workbench: the cloud character in a violet square beside the project name.</desc>
+  <rect width="680" height="160" rx="20" fill="#141b2e"/>
+  <rect x="30" y="30" width="100" height="100" rx="22" fill="#5a4cda"/>
+  <text x="80" y="102" text-anchor="middle" font-family="Noto Sans CJK JP, Noto Sans JP, sans-serif" font-size="62" fill="#fff">雲</text>
+  <text x="156" y="91" font-family="Segoe UI, Arial, sans-serif" font-size="51" letter-spacing="-2" fill="#fff" font-weight="600">cloud<tspan fill="#b4acd9" font-weight="400">oyabun</tspan></text>
+  <text x="159" y="119" font-family="Segoe UI, Arial, sans-serif" font-size="13" letter-spacing="3.5" fill="#b4acd9">ASSESSMENT WORKBENCH</text>
+</svg>

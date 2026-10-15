@@ -114,3 +114,37 @@ def test_no_default_endpoint_or_hosted_fallback(monkeypatch, prepared):
     with pytest.raises(ValueError,match='new preview'):
         assistant.generate(item['assessment_id'],item['id'])
     assert not called
+
+
+@pytest.mark.parametrize('endpoint', ['http://[broken', 'http://localhost:wrong/v1', 'http://localhost:99999/v1', 'http://local host/v1'])
+def test_invalid_endpoint_disables_ai(monkeypatch, endpoint):
+    monkeypatch.setenv('CLOUDOYABUN_AI_BASE_URL', endpoint)
+    monkeypatch.setenv('CLOUDOYABUN_AI_MODEL', 'test')
+    config = ai.configuration()
+    assert not config['configured'] and config['endpoint'] == 'Invalid endpoint'
+
+
+def test_redact_result_values_before_persistence(prepared, monkeypatch):
+    assistant, item = prepared
+    secret = 'abc"quoted\\credential'
+    monkeypatch.setenv('TEST_API_KEY', secret)
+    def provider(*args):
+        result = answer(item['evidence'])
+        result.areas[0].summary = 'token=exposed'
+        result.areas[0].next_steps = 'Inspect ' + secret
+        return result, {}
+    monkeypatch.setattr(ai, 'request_openai', provider)
+    result = assistant.generate(item['assessment_id'], item['id'])
+    assert result['status'] == 'succeeded'
+    assert result['result']['areas'][0]['finding_ids'] == [item['evidence'][0]['id']]
+    for saved in (result['result'], result['batches']):
+        serialized = json.dumps(saved)
+        assert 'exposed' not in serialized and 'credential' not in serialized
+        assert '[REDACTED]' in serialized
+
+
+def test_prompt_change_requires_new_preview(prepared, monkeypatch):
+    assistant, item = prepared
+    monkeypatch.setattr(ai, 'PROMPT_VERSION', 'new-version')
+    with pytest.raises(ValueError, match='new preview'):
+        assistant.generate(item['assessment_id'], item['id'])

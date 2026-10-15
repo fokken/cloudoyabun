@@ -189,3 +189,8 @@ def test_existing_database_migrates_without_losing_findings(service, assessment,
     assert service.findings(assessment["id"])["total"] == 6
     with service.db.connect() as con:
         assert con.execute("PRAGMA user_version").fetchone()[0] == 5
+
+
+def test_deep_json_detection_fails_cleanly():
+    with pytest.raises(ValueError, match='nesting'):
+        detect_parser(b'[' * 2000 + b'0' + b']' * 2000)

@@ -41,11 +41,18 @@ class Analysis(BaseModel):
 
 def configuration():
     model = os.environ.get('CLOUDOYABUN_AI_MODEL', '').strip()
-    endpoint = os.environ.get('CLOUDOYABUN_AI_BASE_URL', '').rstrip('/')
+    endpoint = os.environ.get('CLOUDOYABUN_AI_BASE_URL', '').strip().rstrip('/')
     protocol = os.environ.get('CLOUDOYABUN_AI_PROTOCOL', 'chat').strip()
-    parsed = urlsplit(endpoint)
-    valid = parsed.scheme in ('http', 'https') and bool(parsed.hostname) and not parsed.username and not parsed.password and not parsed.query and not parsed.fragment
-    official = parsed.hostname == 'api.openai.com'
+    valid, official = False, False
+    try:
+        parsed = urlsplit(endpoint)
+        valid = (parsed.scheme in ('http', 'https') and bool(parsed.hostname)
+                 and not parsed.username and not parsed.password and not parsed.query and not parsed.fragment
+                 and not any(c.isspace() or ord(c)<32 for c in endpoint))
+        parsed.port  # Reject invalid and out-of-range ports before enabling Send.
+        official = parsed.hostname == 'api.openai.com'
+    except ValueError:
+        valid = False
     return {'provider': 'OpenAI-compatible', 'model': model, 'endpoint': endpoint if valid else ('No endpoint configured' if not endpoint else 'Invalid endpoint'),
             'protocol': protocol, 'configured': bool(valid and model and protocol in ('chat', 'responses') and (not official or os.environ.get('OPENAI_API_KEY'))),
             'max_findings': 2000, 'input_policy': 'Optional redacted native evidence; analyst notes excluded.'}
@@ -114,6 +121,16 @@ def make_batches(records, size):
     return batches
 
 
+def sanitize_analysis(result):
+    """Redact text values, never serialized JSON syntax or evidence IDs."""
+    data = result.model_dump()
+    data['limitations'] = scrub(data['limitations'])
+    for area in data['areas']:
+        for key in ('area', 'summary', 'rationale', 'next_steps'):
+            area[key] = scrub(area[key])
+    return Analysis.model_validate(data)
+
+
 def validate_citations(result, allowed):
     if any(set(area.finding_ids)-allowed for area in result.areas):
         raise ValueError('Unknown evidence citation')
@@ -142,7 +159,7 @@ class AIAssistance:
 
     def prepare(self, assessment_id, finding_ids=None, *, category='', include_native=False, batch_size=25):
         self.service.assessment(assessment_id)
-        if not 1 <= batch_size <= 100:
+        if type(batch_size) is not int or not 1 <= batch_size <= 100:
             raise ValueError('Batch size must be 1–100')
         if finding_ids is not None and (not finding_ids or len(finding_ids)>2000 or len(set(finding_ids))!=len(finding_ids)):
             raise ValueError('Select 1–2000 distinct findings')
@@ -152,25 +169,29 @@ class AIAssistance:
             where.append('id IN (' + ','.join('?' for _ in finding_ids) + ')'); args.extend(finding_ids)
         if category:
             where.append('category=?'); args.append(category)
+        evidence, input_bytes = [], 2
+        columns = (*fields, 'payload', 'artifact_id', 'locator', 'asset', 'environment') if include_native else fields
         with self.db.connect() as con:
-            rows = con.execute('SELECT * FROM findings WHERE ' + ' AND '.join(where) + ' ORDER BY provider,rule_id,environment,asset,id LIMIT 2001', args).fetchall()
-        if not rows or len(rows)>2000:
+            rows = con.execute('SELECT ' + ','.join(columns) + ' FROM findings WHERE ' + ' AND '.join(where) + ' ORDER BY provider,rule_id,environment,asset,id LIMIT 2001', args)
+            for r in rows:
+                if len(evidence) == 2000:
+                    raise ValueError('Scope must contain 1–2000 findings; narrow the category or selection')
+                record = {k: scrub(r[k]) if isinstance(r[k],str) and k!='id' else r[k] for k in fields}
+                if include_native:
+                    payload = redact_native(json.loads(r['payload']))
+                    encoded = json.dumps(payload)
+                    record['native_evidence'] = payload if len(encoded.encode())<=12000 else {'excerpt':encoded[:3000], 'truncated':True}
+                    record['source'] = {'artifact_id':r['artifact_id'], 'locator':r['locator']}
+                    record['asset'] = scrub(r['asset'] or '')
+                    record['environment'] = scrub(r['environment'] or '')
+                input_bytes += len(json.dumps(record).encode()) + 2
+                if input_bytes > 8000000:
+                    raise ValueError('Input exceeds 8 MB; narrow the selection')
+                evidence.append(record)
+        if not evidence:
             raise ValueError('Scope must contain 1–2000 findings; narrow the category or selection')
-        if finding_ids is not None and len(rows)!=len(finding_ids):
+        if finding_ids is not None and len(evidence)!=len(finding_ids):
             raise ValueError('All findings must belong to the selected assessment and category')
-        evidence = []
-        for r in rows:
-            record = {k: scrub(r[k]) if isinstance(r[k],str) and k!='id' else r[k] for k in fields}
-            if include_native:
-                payload = redact_native(json.loads(r['payload']))
-                encoded = json.dumps(payload)
-                record['native_evidence'] = payload if len(encoded.encode())<=12000 else {'excerpt':encoded[:3000], 'truncated':True}
-                record['source'] = {'artifact_id':r['artifact_id'], 'locator':r['locator']}
-                record['asset'] = scrub(r['asset'] or '')
-                record['environment'] = scrub(r['environment'] or '')
-            evidence.append(record)
-        if len(json.dumps(evidence).encode())>8000000:
-            raise ValueError('Input exceeds 8 MB; narrow the selection')
         config = configuration()
         analysis_id = uid()
         plan = {'batch_size':batch_size, 'include_native':include_native, 'category':category,
@@ -183,7 +204,7 @@ class AIAssistance:
     def generate(self, assessment_id, analysis_id):
         item = self.get(assessment_id, analysis_id)
         config = configuration()
-        if not config['configured'] or any(item[k] != config[k] for k in ('model', 'endpoint', 'protocol')):
+        if item['prompt_version'] != PROMPT_VERSION or not config['configured'] or any(item[k] != config[k] for k in ('model', 'endpoint', 'protocol')):
             raise ValueError('Configure the AI endpoint, model and credentials on the server, then prepare a new preview')
         run_id = uid()
         with self.db.connect() as con:
@@ -200,6 +221,7 @@ class AIAssistance:
                 journal.emit('ai_batch_started', {'batch':index+1,'total':len(batches)},step='analysis')
                 result, used = request_openai(item['model'],batch,item['endpoint'],item['protocol'])
                 validate_citations(result, {f['id'] for f in batch})
+                result = sanitize_analysis(result)
                 completed.append(result.model_dump())
                 for k,v in used.items():
                     if type(v) is int: usage[k] = usage.get(k,0)+v
@@ -218,15 +240,14 @@ class AIAssistance:
                         allowed = {fid for summary in group for area in summary['areas'] for fid in area['finding_ids']}
                         result, used = request_openai(item['model'], {'batch_summaries':group}, item['endpoint'],item['protocol'])
                         validate_citations(result,allowed)
+                        result = sanitize_analysis(result)
                         reduced.append(result.model_dump())
                         for k,v in used.items():
                             if type(v) is int: usage[k]=usage.get(k,0)+v
                         journal.emit('ai_synthesis_completed', {'input_summaries':len(group)},step='analysis')
                     level = reduced
                 result = Analysis.model_validate(level[0])
-            result_json = scrub(result.model_dump_json())
-            # Redaction must still produce a valid structured result.
-            result_json = Analysis.model_validate_json(result_json).model_dump_json()
+            result_json = sanitize_analysis(result).model_dump_json()
             with self.db.connect() as con:
                 con.execute("UPDATE ai_analyses SET status='succeeded',result=?,usage=? WHERE id=?", (result_json, json.dumps({k: v for k, v in usage.items() if k in ('input_tokens', 'output_tokens', 'total_tokens', 'prompt_tokens', 'completion_tokens') and type(v) is int}), analysis_id))
             journal.emit('ai_completed', {'analysis_id': analysis_id}, step='analysis')
