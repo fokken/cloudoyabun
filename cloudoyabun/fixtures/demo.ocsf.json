@@ -1,0 +1,242 @@
+[
+  {
+    "finding_info": {
+      "title": "S3 bucket allows public read access",
+      "uid": "synthetic-s3_bucket_public_access",
+      "desc": "Synthetic example: bucket policy allows unauthenticated reads."
+    },
+    "metadata": {
+      "event_code": "s3_bucket_public_access",
+      "product": {
+        "name": "Prowler",
+        "uid": "prowler",
+        "version": "5.10.0"
+      }
+    },
+    "cloud": {
+      "provider": "aws",
+      "account": {
+        "uid": "000000000000"
+      },
+      "region": "eu-north-1"
+    },
+    "resources": [
+      {
+        "uid": "arn:aws:s3:::northstar-public-demo",
+        "group": {
+          "name": "s3"
+        }
+      }
+    ],
+    "severity": "High",
+    "status": "New",
+    "status_code": "FAIL",
+    "status_detail": "Synthetic example: bucket policy allows unauthenticated reads.",
+    "unmapped": {
+      "notes": "SYNTHETIC DEMO \u2014 not a real assessment result"
+    },
+    "remediation": {
+      "desc": "Validate the configuration against the authorized assessment scope and apply the appropriate least-privilege setting."
+    }
+  },
+  {
+    "finding_info": {
+      "title": "Security group permits SSH from the internet",
+      "uid": "synthetic-ec2_securitygroup_allow_ingress_from_internet_to_tcp_port_22",
+      "desc": "Synthetic example: inbound TCP 22 is open to 0.0.0.0/0."
+    },
+    "metadata": {
+      "event_code": "ec2_securitygroup_allow_ingress_from_internet_to_tcp_port_22",
+      "product": {
+        "name": "Prowler",
+        "uid": "prowler",
+        "version": "5.10.0"
+      }
+    },
+    "cloud": {
+      "provider": "aws",
+      "account": {
+        "uid": "000000000000"
+      },
+      "region": "eu-north-1"
+    },
+    "resources": [
+      {
+        "uid": "sg-demo-001",
+        "group": {
+          "name": "ec2"
+        }
+      }
+    ],
+    "severity": "High",
+    "status": "New",
+    "status_code": "FAIL",
+    "status_detail": "Synthetic example: inbound TCP 22 is open to 0.0.0.0/0.",
+    "unmapped": {
+      "notes": "SYNTHETIC DEMO \u2014 not a real assessment result"
+    },
+    "remediation": {
+      "desc": "Validate the configuration against the authorized assessment scope and apply the appropriate least-privilege setting."
+    }
+  },
+  {
+    "finding_info": {
+      "title": "Storage account requires secure transport",
+      "uid": "synthetic-storage_secure_transfer_required",
+      "desc": "Synthetic example: secure transfer is disabled."
+    },
+    "metadata": {
+      "event_code": "storage_secure_transfer_required",
+      "product": {
+        "name": "Prowler",
+        "uid": "prowler",
+        "version": "5.10.0"
+      }
+    },
+    "cloud": {
+      "provider": "azure",
+      "account": {
+        "uid": "demo-subscription"
+      },
+      "region": "swedencentral"
+    },
+    "resources": [
+      {
+        "uid": "/subscriptions/demo/resourceGroups/lab/providers/Microsoft.Storage/storageAccounts/demostore",
+        "group": {
+          "name": "storage"
+        }
+      }
+    ],
+    "severity": "Medium",
+    "status": "New",
+    "status_code": "FAIL",
+    "status_detail": "Synthetic example: secure transfer is disabled.",
+    "unmapped": {
+      "notes": "SYNTHETIC DEMO \u2014 not a real assessment result"
+    },
+    "remediation": {
+      "desc": "Validate the configuration against the authorized assessment scope and apply the appropriate least-privilege setting."
+    }
+  },
+  {
+    "finding_info": {
+      "title": "CloudTrail records management events",
+      "uid": "synthetic-cloudtrail_multi_region_enabled",
+      "desc": "Synthetic example: management events are recorded."
+    },
+    "metadata": {
+      "event_code": "cloudtrail_multi_region_enabled",
+      "product": {
+        "name": "Prowler",
+        "uid": "prowler",
+        "version": "5.10.0"
+      }
+    },
+    "cloud": {
+      "provider": "aws",
+      "account": {
+        "uid": "000000000000"
+      },
+      "region": "eu-north-1"
+    },
+    "resources": [
+      {
+        "uid": "arn:aws:cloudtrail:eu-north-1:000000000000:trail/demo",
+        "group": {
+          "name": "cloudtrail"
+        }
+      }
+    ],
+    "severity": "Low",
+    "status": "New",
+    "status_code": "PASS",
+    "status_detail": "Synthetic example: management events are recorded.",
+    "unmapped": {
+      "notes": "SYNTHETIC DEMO \u2014 not a real assessment result"
+    },
+    "remediation": {
+      "desc": "Validate the configuration against the authorized assessment scope and apply the appropriate least-privilege setting."
+    }
+  },
+  {
+    "finding_info": {
+      "title": "Privileged identity has no MFA device",
+      "uid": "synthetic-iam_user_mfa_enabled_console_access",
+      "desc": "Synthetic example: console user has administrative permissions without MFA."
+    },
+    "metadata": {
+      "event_code": "iam_user_mfa_enabled_console_access",
+      "product": {
+        "name": "Prowler",
+        "uid": "prowler",
+        "version": "5.10.0"
+      }
+    },
+    "cloud": {
+      "provider": "aws",
+      "account": {
+        "uid": "000000000000"
+      },
+      "region": "eu-north-1"
+    },
+    "resources": [
+      {
+        "uid": "arn:aws:iam::000000000000:user/demo-admin",
+        "group": {
+          "name": "iam"
+        }
+      }
+    ],
+    "severity": "Critical",
+    "status": "New",
+    "status_code": "FAIL",
+    "status_detail": "Synthetic example: console user has administrative permissions without MFA.",
+    "unmapped": {
+      "notes": "SYNTHETIC DEMO \u2014 not a real assessment result"
+    },
+    "remediation": {
+      "desc": "Validate the configuration against the authorized assessment scope and apply the appropriate least-privilege setting."
+    }
+  },
+  {
+    "finding_info": {
+      "title": "Key rotation is enabled",
+      "uid": "synthetic-kms_cmk_rotation_enabled",
+      "desc": "Synthetic example: automatic key rotation is disabled."
+    },
+    "metadata": {
+      "event_code": "kms_cmk_rotation_enabled",
+      "product": {
+        "name": "Prowler",
+        "uid": "prowler",
+        "version": "5.10.0"
+      }
+    },
+    "cloud": {
+      "provider": "aws",
+      "account": {
+        "uid": "000000000000"
+      },
+      "region": "eu-north-1"
+    },
+    "resources": [
+      {
+        "uid": "arn:aws:kms:eu-north-1:000000000000:key/demo",
+        "group": {
+          "name": "kms"
+        }
+      }
+    ],
+    "severity": "Medium",
+    "status": "New",
+    "status_code": "FAIL",
+    "status_detail": "Synthetic example: automatic key rotation is disabled.",
+    "unmapped": {
+      "notes": "SYNTHETIC DEMO \u2014 not a real assessment result"
+    },
+    "remediation": {
+      "desc": "Validate the configuration against the authorized assessment scope and apply the appropriate least-privilege setting."
+    }
+  }
+]

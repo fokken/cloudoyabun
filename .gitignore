@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+.cloudoyabun/
+*.sqlite3*
+
+# Local credentials and developer state
+.env
+.env.*
+!.env.example
+.agents/
+.codex/
+
+# Build output
+dist/
+build/

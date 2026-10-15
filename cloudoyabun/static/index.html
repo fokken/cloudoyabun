@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CloudOyabun · Assessment workbench</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+<aside class="sidebar">
+  <a class="brand" href="/" aria-label="CloudOyabun home"><span class="brand-icon">雲</span><span>cloud<span class="brand-light">oyabun</span><small>ASSESSMENT WORKBENCH</small></span></a>
+  <div class="workspace-label">WORKSPACE <span class="local-dot">LOCAL</span></div>
+  <label class="sr-only" for="assessment">Assessment</label><select id="assessment" aria-label="Assessment"></select>
+  <button id="new-assessment" class="quiet full">＋ New assessment</button>
+  <nav aria-label="Workspace navigation">
+    <button class="nav active" data-view="findings"><span>▤</span> Findings <b id="nav-count">0</b></button>
+    <button class="nav" data-view="runs"><span>≋</span> Execution log</button>
+    <button class="nav" data-view="repeat"><span>↻</span> Repeat assessments</button>
+    <button class="nav" data-view="ai"><span>✧</span> AI assistance</button>
+    <button class="nav" data-view="reports"><span>▧</span> Reports</button>
+  </nav>
+  <div class="sidebar-note"><span class="small-dot"></span> Local evidence workspace<p>Native tool results.<br>Analyst-led decisions.</p></div>
+  <div class="sidebar-footer"><span class="avatar">LA</span><div>Local analyst<small>CloudOyabun v0.1</small></div></div>
+</aside>
+<main>
+  <div class="topbar"><span>Workspace <span class="slash">/</span> <span id="breadcrumb">Findings</span></span><span class="connection"><i></i> Local database</span></div>
+  <header class="page-header"><div><div class="eyebrow">SECURITY ASSESSMENT</div><h1 id="page-title">Finding workbench</h1><p id="page-description">Investigate the evidence. Surface what matters.</p></div><div class="import-controls"><label class="sr-only" for="import-format">Import format</label><select id="import-format" aria-label="Import format"><option value="auto">Detect format</option><option value="prowler-ocsf">Prowler OCSF</option><option value="kubescape-json">Kubescape JSON</option></select><button id="import-button" class="primary">＋ Import results</button></div><input type="file" id="import-file" accept=".json,application/json" hidden></header>
+  <div id="notice" role="status" hidden></div>
+  <section id="welcome" class="empty-state" hidden><div class="empty-symbol">雲</div><h2>Your next assessment starts here</h2><p>Create an assessment, define its scope, and import Prowler or Kubescape JSON results.</p><button id="welcome-create" class="primary">Create assessment</button></section>
+  <div id="workspace">
+    <section class="stats" aria-label="Assessment statistics">
+      <div><span>Total findings</span><strong id="stat-total">0</strong><small>Native tool records</small></div>
+      <div><span>Awaiting review</span><strong id="stat-unreviewed">0</strong><small>Ready for investigation</small></div>
+      <div><span>Selected for report</span><strong id="stat-selected">0</strong><small>Analyst-curated evidence</small></div>
+      <div><span>Recorded runs</span><strong id="stat-runs">0</strong><small>Imports &amp; executions</small></div>
+    </section>
+    <section id="findings-view">
+      <div class="section-heading"><h2>Findings <span id="result-count" class="count-pill">0</span></h2><label class="check-filter"><input id="group-checks" type="checkbox" checked> Group by check</label></div>
+      <div class="filters">
+        <label class="search"><span>⌕</span><input id="search" type="search" placeholder="Search findings, assets, rules…" aria-label="Search findings"></label>
+        <select id="suppression" aria-label="Suppression visibility"><option value="hide">Hide suppressed</option><option value="">Show all</option><option value="only">Suppressed only</option></select>
+        <select id="tool" aria-label="Filter by tool"><option value="">All tools</option></select>
+        <select id="provider" aria-label="Filter by provider"><option value="">All providers</option></select>
+        <select id="severity" aria-label="Filter by effective severity"><option value="">All severities</option></select>
+        <select id="disposition" aria-label="Filter by disposition"><option value="">All dispositions</option><option value="unreviewed">Unreviewed</option><option value="confirmed">Confirmed</option><option value="needs-review">Needs review</option><option value="noise">Noise</option></select>
+        <select id="category" aria-label="Filter by category"><option value="">All categories</option></select>
+        <input id="tag" placeholder="Filter by tag" aria-label="Filter by exact tag">
+        <label class="check-filter"><input id="selected-only" type="checkbox"> Report only</label>
+      </div>
+      <div id="bulk-bar" class="bulk-bar" hidden><strong id="bulk-count">0 selected</strong><select id="bulk-mode" aria-label="Bulk tag operation"><option value="add">Add tags</option><option value="remove">Remove tags</option></select><input id="bulk-tags" aria-label="Bulk tags" placeholder="Tags, comma-separated"><button id="apply-tags" class="primary">Apply tags</button><select id="bulk-disposition" aria-label="Bulk disposition"><option value="">Keep disposition</option><option value="unreviewed">Unreviewed</option><option value="confirmed">Confirmed</option><option value="needs-review">Needs review</option><option value="noise">Noise</option></select><select id="bulk-category-mode" aria-label="Bulk category operation"><option value="keep">Keep category</option><option value="set">Set category</option><option value="clear">Clear category</option></select><input id="bulk-category" list="categories" aria-label="Bulk category" placeholder="Category" maxlength="100" disabled><select id="bulk-severity" aria-label="Bulk severity override"><option value="">Keep severity</option><option value="reset">Use tool severity</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Informational</option></select><select id="bulk-report" aria-label="Bulk report inclusion"><option value="">Keep report selection</option><option value="add">Add to report</option><option value="remove">Remove from report</option></select><select id="bulk-notes-mode" aria-label="Bulk notes operation"><option value="">Keep notes</option><option value="append">Append notes</option><option value="replace">Replace notes</option><option value="clear">Clear notes</option></select><textarea id="bulk-notes" aria-label="Bulk analyst notes" placeholder="Analyst notes for selected findings" maxlength="20000" rows="2" disabled></textarea><button id="apply-triage" class="primary">Apply decisions</button><button id="ai-selected" class="quiet">Analyze with AI</button><button id="clear-selection" class="quiet">Clear selection</button><small>Selection carries across pages; changing filters clears it.</small></div>
+      <div class="table-wrap"><table><thead><tr><th class="select-cell"><input id="select-displayed" type="checkbox" aria-label="Select displayed findings" title="Select displayed findings; expand groups to select their records"></th><th><button data-sort="title">Finding ↕</button></th><th><button data-sort="provider">Provider ↕</button></th><th><button data-sort="severity" title="Sort effective severity labels alphabetically">Severity (effective) ↕</button></th><th><button data-sort="native_status">Check ↕</button></th><th><button data-sort="category">Category ↕</button></th><th><button data-sort="priority">Priority ↕</button></th><th><button data-sort="disposition">Triage ↕</button></th><th>Report</th></tr></thead><tbody id="finding-rows"></tbody></table><div id="no-findings" class="empty-table" hidden>No findings to show. Import results or adjust your filters.</div></div>
+      <div class="table-footer"><span id="page-info">0 findings</span><div><button id="previous" class="quiet">← Previous</button><button id="next" class="quiet">Next →</button></div></div>
+    </section>
+    <section id="runs-view" hidden><div class="section-heading"><h2>Execution history</h2><button id="refresh-runs" class="quiet">↻ Refresh</button></div><p class="muted">Inspect import diagnostics and command execution, including stdout, stderr, and lifecycle events.</p><div id="run-list" class="card-list"></div><section id="log-panel" hidden><div class="section-heading"><h2 id="log-title">Run events</h2><a id="log-download" class="quiet" href="#">Export NDJSON ↗</a></div><div class="log-filters"><select id="log-source" aria-label="Log source"><option value="">All sources</option><option>orchestrator</option><option>stdout</option><option>stderr</option></select><input id="log-search" placeholder="Search event details" aria-label="Search event details"><button id="refresh-log" class="quiet">Refresh</button><span id="log-state" class="muted"></span></div><div id="events" class="event-log" aria-label="Execution events"></div><button id="more-events" class="quiet" hidden>Load more events</button></section></section>
+    <section id="reports-view" hidden><div class="section-heading"><h2>Technical reports</h2><button id="create-report" class="primary">Create report snapshot</button></div><p class="muted">Selected findings are grouped by category and report order. Each Markdown snapshot freezes analyst notes and native evidence.</p><div id="report-list" class="card-list"></div></section>
+    <section id="ai-view" hidden>
+      <div class="section-heading"><h2>AI assistance</h2><button id="refresh-ai" class="quiet">Refresh</button></div>
+      <p id="ai-config" class="muted"></p>
+      <p>Select findings in the workbench, then choose Analyze with AI. Preview the input before sending it to your configured server. Suggestions remain separate from analyst decisions and reports.</p>
+      <div class="filters"><label>Category (blank = whole assessment)<input id="ai-category" list="categories"></label><label class="check-filter"><input type="checkbox" id="ai-native"> Include redacted native evidence</label><label>Findings per batch<input id="ai-batch-size" type="number" value="25" min="1" max="100"></label><button id="ai-scope" class="primary">Preview assessment / category</button></div>
+      <p>Up to 2,000 findings. Native evidence may contain sensitive resource details; inspect the preview. Smaller batches help local models with limited context.</p>
+      <div id="ai-detail"></div><h2>Analysis history</h2><div id="ai-history" class="card-list"></div>
+    </section>
+    <section id="repeat-view" hidden>
+      <h2>Compare imported scans</h2><p>Choose an earlier and a later import, including imports from separate assessments. Missing results are not proof of remediation.</p>
+      <div class="filters"><label>Earlier import<select id="compare-before"></select></label><label>Later import<select id="compare-after"></select></label><button id="compare-scans" class="primary">Compare</button></div><div id="comparison-result"></div>
+      <h2>Reusable suppression rules</h2><p>Rules hide matching findings across assessments in the same provider and environment. Evidence and report selections remain intact. Disable a rule to restore visibility.</p><div id="suppression-list" class="card-list"></div>
+    </section>
+    <footer class="workspace-footer"><span id="scope"></span><span>Prowler &amp; Kubescape import · AzureHound collection</span></footer>
+  </div>
+</main>
+<dialog id="assessment-dialog"><form id="assessment-form"><div class="section-heading"><h2>New assessment</h2><button type="button" id="close-assessment" class="icon-button" aria-label="Close">×</button></div><label>Name<input name="name" required maxlength="200" placeholder="e.g. Production cloud review"></label><label>Authorized scope<textarea name="scope" required maxlength="10000" rows="4" placeholder="Accounts, tenants, projects, or clusters covered by this assessment"></textarea></label><p class="muted">This creates a workspace. Tools run only when explicitly invoked through the CLI.</p><button class="primary" type="submit">Create assessment</button><p id="assessment-error" class="form-error" role="alert"></p></form></dialog>
+<dialog id="finding-dialog"><form id="triage-form"><div class="detail-heading"><div><span class="eyebrow" id="detail-tool">TOOL FINDING</span><h2 id="detail-title"></h2></div><button type="button" id="close-finding" class="icon-button" aria-label="Close finding">×</button></div><div id="detail-meta" class="detail-meta"></div><div class="detail-grid"><label>Disposition<select name="disposition"><option value="unreviewed">Unreviewed</option><option value="confirmed">Confirmed</option><option value="needs-review">Needs review</option><option value="noise">Noise</option></select></label><label>Analyst severity override<select name="severity_override"><option value="">Use tool severity</option><option>Critical</option><option>High</option><option>Medium</option><option>Low</option><option>Informational</option></select></label><label>Analyst priority<select name="priority"><option value="0">Unset</option><option value="4">4 · Highest</option><option value="3">3 · High</option><option value="2">2 · Medium</option><option value="1">1 · Low</option></select></label><label>Category<input name="category" list="categories" maxlength="100" placeholder="e.g. storage"></label><label>Tags (comma-separated)<input name="tags" placeholder="production, follow-up"></label><label>Report order<input name="report_order" type="number" value="0" step="1"></label><label class="inline-label"><input name="selected" type="checkbox"> Include in technical report</label></div><datalist id="categories"><option value="storage"><option value="network"><option value="rbac"><option value="identity"><option value="compute"><option value="kubernetes"><option value="secrets"><option value="logging and monitoring"><option value="governance"></datalist><label>Analyst notes<textarea name="notes" rows="4" maxlength="20000" placeholder="Investigation, impact, and remediation notes…"></textarea></label><details><summary>Suppress recurring noise</summary><p id="suppression-state"></p><label>Reason<input id="suppress-reason" maxlength="2000"></label><label>Expiry (optional UTC timestamp)<input id="suppress-expiry" placeholder="2027-01-01T00:00:00Z"></label><label class="inline-label"><input id="suppress-check" type="checkbox"> Match this check on all resources in this environment</label><button id="suppress-finding" type="button" class="quiet">Create suppression rule</button></details><details><summary>Native evidence &amp; provenance</summary><a id="artifact-download" href="#">Download original artifact ↗</a><pre id="provenance"></pre><pre id="native-payload"></pre></details><details><summary id="audit-summary">Decision history</summary><div id="audit-list"></div></details><div class="detail-footer"><span id="save-status" role="status"></span><button class="primary" type="submit">Save analyst decision</button></div></form></dialog>
+</body>
+</html>

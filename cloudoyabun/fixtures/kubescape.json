@@ -1,0 +1,82 @@
+{
+  "metadata": {
+    "scanMetadata": {
+      "formatVersion": "v2",
+      "kubescapeVersion": "synthetic"
+    }
+  },
+  "clusterName": "synthetic-cluster",
+  "summaryDetails": {
+    "controls": {
+      "C-0001": {
+        "controlID": "C-0001",
+        "name": "Privileged containers",
+        "severity": "High",
+        "status": "failed"
+      },
+      "C-0002": {
+        "controlID": "C-0002",
+        "name": "Resource limits",
+        "severity": "Medium",
+        "status": "failed"
+      },
+      "C-0003": {
+        "controlID": "C-0003",
+        "name": "Host configuration",
+        "status": "skipped",
+        "statusInfo": {
+          "status": "skipped",
+          "info": "Host evidence unavailable"
+        }
+      }
+    }
+  },
+  "results": [
+    {
+      "resourceID": "apps/v1/default/Deployment/demo-one",
+      "controls": [
+        {
+          "controlID": "C-0001",
+          "name": "Privileged containers",
+          "severity": "High",
+          "status": {
+            "status": "failed"
+          },
+          "rules": [
+            {
+              "name": "synthetic-rule",
+              "status": "failed",
+              "paths": {
+                "failedPaths": [
+                  "spec.template.spec.containers[0].securityContext.privileged"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resourceID": "apps/v1/default/Deployment/demo-two",
+      "controls": [
+        {
+          "controlID": "C-0001",
+          "name": "Privileged containers",
+          "severity": "High",
+          "status": {
+            "status": "passed"
+          }
+        },
+        {
+          "controlID": "C-0002",
+          "name": "Resource limits",
+          "status": {
+            "status": "failed"
+          }
+        }
+      ]
+    }
+  ],
+  "resources": [],
+  "synthetic": true
+}
