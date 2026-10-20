@@ -6,6 +6,7 @@
 | --- | --- |
 | `cloudoyabun/db.py` | SQLite schema, connections, and identifiers |
 | `cloudoyabun/service.py` | Assessment, import, triage, filtering, and report services |
+| `cloudoyabun/archive.py` | Portable per-scan export and restore |
 | `cloudoyabun/integrations/` | Parser registry and tool-specific metadata extraction |
 | `cloudoyabun/events.py` | Incrementally committed structured event journal |
 | `cloudoyabun/execution.py` | POSIX subprocess runner and durable execution journal |
@@ -33,6 +34,9 @@ Use the returned finding ID and revision to record a decision:
 ```sh
 .venv/bin/python -m cloudoyabun triage FINDING_ID --revision 0 --set '{"category":"storage","tags":["follow-up"],"disposition":"confirmed","priority":3,"selected":true,"notes":"Analyst investigation notes"}'
 .venv/bin/python -m cloudoyabun report ASSESSMENT_ID --output technical-report.md
+.venv/bin/python -m cloudoyabun scan-archives ASSESSMENT_ID
+.venv/bin/python -m cloudoyabun export-scan ARTIFACT_ID --output scan.zip
+.venv/bin/python -m cloudoyabun restore-scan scan.zip
 ```
 
 Each successful edit increments `revision`. A stale edit fails rather than overwriting another decision. Priority ranges from 0 (unset) to 4 (highest). Native severity remains a tool-owned value; current severity sorting is alphabetical and does not imply a universal severity ranking.

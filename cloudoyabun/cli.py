@@ -8,6 +8,7 @@ from pathlib import Path
 
 from .db import Database
 from .service import MAX_IMPORT_BYTES, Service
+from .archive import MAX_ARCHIVE_BYTES, ScanArchive
 
 
 def main(argv=None):
@@ -23,6 +24,14 @@ def main(argv=None):
     ingest.add_argument("assessment")
     ingest.add_argument("file", type=Path)
     ingest.add_argument("--tool", choices=("auto", "prowler", "kubescape"), default="auto")
+    export = sub.add_parser("export-scan", help="Save an imported scan, decisions and logs as a portable ZIP")
+    export.add_argument("artifact", help="Artifact ID from a finding or scan-archives")
+    export.add_argument("--output", type=Path, required=True)
+    archive_list = sub.add_parser("scan-archives", help="List scans available for archive export")
+    archive_list.add_argument("assessment")
+    restore = sub.add_parser("restore-scan", help="Restore a portable scan archive")
+    restore.add_argument("file", type=Path)
+    restore.add_argument("--assessment", help="Restore into this assessment; default creates a new one")
     scan = sub.add_parser("scan", help="Run a predefined full scan or AzureHound collection")
     scan.add_argument("tool", choices=("prowler", "kubescape", "azurehound"))
     scan.add_argument("--assessment", required=True)
@@ -64,6 +73,7 @@ def main(argv=None):
     try:
         db = Database(args.db)
         service = Service(db)
+        archives = ScanArchive(db)
         result = None
         if args.action == "init":
             result = {"database": str(db.path), "schema_version": 5}
@@ -76,6 +86,23 @@ def main(argv=None):
                 content = source.read(MAX_IMPORT_BYTES + 1)
             adapter = {"auto": "auto", "prowler": "prowler-ocsf", "kubescape": "kubescape-json"}[args.tool]
             result = service.import_artifact(args.assessment, args.file.name, content, adapter)
+        elif args.action == "scan-archives":
+            service.assessment(args.assessment)
+            with db.connect() as con:
+                result = [dict(row) for row in con.execute(
+                    "SELECT a.id,a.name,a.adapter,a.sha256,r.status,r.started_at,COUNT(f.id) finding_count "
+                    "FROM artifacts a JOIN runs r ON r.id=a.run_id LEFT JOIN findings f ON f.artifact_id=a.id "
+                    "WHERE a.assessment_id=? GROUP BY a.id ORDER BY r.started_at DESC,a.id", (args.assessment,))]
+        elif args.action == "export-scan":
+            content = archives.export(args.artifact)
+            descriptor = os.open(args.output, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, "wb") as destination:
+                destination.write(content)
+            result = {"output": str(args.output.resolve()), "bytes": len(content), "artifact_id": args.artifact}
+        elif args.action == "restore-scan":
+            with args.file.open("rb") as source:
+                content = source.read(MAX_ARCHIVE_BYTES + 1)
+            result = archives.restore(content, args.assessment)
         elif args.action == "findings":
             result = service.findings(args.assessment, q=args.query, sort=args.sort, offset=args.offset)
         elif args.action == "triage":

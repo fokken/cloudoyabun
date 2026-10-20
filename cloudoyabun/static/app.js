@@ -247,9 +247,9 @@ async function saveTriage(event) {
 }
 async function loadRuns() {
   const id = state.assessment;
-  const runs = await api(assessmentPath("runs"));
+  const [runs, archives] = await Promise.all([api(assessmentPath("runs")), api(assessmentPath("scan-archives"))]);
   if (id !== state.assessment) return;
-  const signature = JSON.stringify(runs);
+  const signature = JSON.stringify([runs, archives]);
   if (signature === state.runsSignature) return;
   state.runsSignature = signature;
   $("run-list").replaceChildren();
@@ -260,6 +260,16 @@ async function loadRuns() {
     button.addEventListener("click", guarded(() => openRun(run)));
     content.append(button, element("small", `${new Date(run.started_at).toLocaleString()} · ${run.id.slice(0, 12)}${run.exit_code !== null ? " · exit " + run.exit_code : ""}`));
     card.append(content, badge(run.status)); $("run-list").append(card);
+  }
+  $("archive-list").replaceChildren();
+  if (!archives.length) $("archive-list").append(element("p", "No imported scans to archive yet.", "muted"));
+  for (const archive of archives) {
+    const card = element("div", null, "report-card");
+    const details = element("div", `${archive.name} · ${archive.finding_count} findings`);
+    details.append(element("small", `${archive.adapter} · ${new Date(archive.started_at).toLocaleString()}`));
+    const link = element("a", "Download scan ZIP ↗", "quiet");
+    link.href = `/api/artifacts/${archive.id}/archive`;
+    card.append(details, link); $("archive-list").append(card);
   }
   await refreshOverview();
 }
@@ -344,6 +354,18 @@ $("import-file").onchange = guarded(async event => {
   } finally { $("import-button").disabled = false; $("import-button").textContent = "＋ Import results"; event.target.value = ""; }
 });
 $("refresh-runs").onclick = guarded(loadRuns);
+$("restore-button").onclick = () => $("restore-file").click();
+$("restore-file").onchange = guarded(async event => {
+  const file = event.target.files[0]; if (!file) return;
+  if (file.size > 64 * 1024 * 1024) throw new Error("Scan archive exceeds the 64 MiB limit.");
+  $("restore-button").disabled = true;
+  try {
+    const result = await api(assessmentPath("restore"), {method: "POST", headers: {"Content-Type": "application/zip"}, body: file});
+    state.runsSignature = "";
+    notice(result.reused ? `This scan is already present (${result.findings} findings); existing analyst decisions were kept.` : `Scan restored with ${result.findings} findings and its recorded logs.`);
+    await loadRuns();
+  } finally { $("restore-button").disabled = false; event.target.value = ""; }
+});
 $("refresh-log").onclick = guarded(() => loadLogs(true));
 $("log-source").onchange = guarded(() => loadLogs(true));
 $("log-search").onchange = guarded(() => loadLogs(true));

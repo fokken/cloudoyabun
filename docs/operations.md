@@ -12,7 +12,20 @@ The browser server binds to `127.0.0.1:8787`. Use `serve --port 8788` if needed.
 
 Schema version 5 is initialized/migrated when a database opens, preserving existing findings. SQLite contains artifacts, findings, analyst audits, reports, AI snapshots, comparisons, suppression rules and workflow audits. Scan output lives beside the database under `runs/`; AzureHound output is retained there and is not stored as an imported artifact.
 
-Before upgrading, stop the server and active CLI jobs, then back up the database and its adjacent `runs/` directory. If SQLite `-wal`/`-shm` files remain, preserve them alongside the database; do not copy only an actively written database file. Restore into a separate directory and verify it before replacing your working data. Automated backup/restore and retention tooling are not implemented.
+### Scan archives and full backups
+
+In the browser, open **Execution log → Scan archives** to download an imported Prowler or Kubescape scan as a ZIP, or restore a saved ZIP into the current assessment. CLI equivalents:
+
+```sh
+.venv/bin/python -m cloudoyabun scan-archives ASSESSMENT_ID
+.venv/bin/python -m cloudoyabun export-scan ARTIFACT_ID --output scan.zip
+.venv/bin/python -m cloudoyabun restore-scan scan.zip
+.venv/bin/python -m cloudoyabun restore-scan scan.zip --assessment EXISTING_ASSESSMENT_ID
+```
+
+The archive contains the exact imported result bytes, parsed finding records and analyst state, decision history, import events and associated scanner execution events. Restore creates new record IDs and does not need the original scanner or parser. A scan already present in the target assessment is reused without overwriting its current decisions. Archive uploads are limited to 64 MiB; the original result remains subject to the 25 MiB import limit. CLI exports create private files and refuse to overwrite an existing path.
+
+A scan archive is **not a full workspace backup**: it does not include report snapshots, AI analyses, comparisons, suppression rules, unrelated runs, or AzureHound's collection file (which remains for BloodHound). For a full backup before upgrading, stop the server and active CLI jobs, then copy the database and its adjacent `runs/` directory. If SQLite `-wal`/`-shm` files remain, preserve them alongside the database; do not copy only an actively written database file. Restore into a separate directory and verify it before replacing your working data. Full-workspace backup/restore and retention tooling are not implemented.
 
 Treat backups, exports and AI snapshots as sensitive assessment data. Database and newly collected output use restrictive file permissions. Tool-native output can contain secrets even though execution logs redact configured secret values.
 

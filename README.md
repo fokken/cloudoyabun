@@ -50,9 +50,20 @@ Add `--dry-run` to inspect a scan command without executing it. To use a nondefa
 - Browse expandable check groups with provider and clearly labeled tool/analyst severity; filter, search and bulk-edit tags, category, disposition, notes and report inclusion.
 - Preserve original artifacts, individual native payloads, provenance and analyst decision history.
 - Inspect granular execution events, stdout/stderr, failures and import diagnostics.
+- Save an imported scan as a portable ZIP and restore it later with original evidence, analyst decisions and associated logs.
 - Preview optional AI input, analyze selections or entire categories in batches, and review evidence-linked summaries and priorities. Custom/local OpenAI-compatible servers are supported; no provider endpoint is configured by default.
 - Compare two imports, explicitly carry forward eligible analyst decisions, and manage reusable suppression rules.
 - Freeze selected findings in categorized, ordered Markdown report snapshots.
+
+To archive a scan, open **Execution log → Scan archives** and download its ZIP. The same section restores a ZIP into the current assessment. From the CLI:
+
+```sh
+.venv/bin/python -m cloudoyabun scan-archives ASSESSMENT_ID
+.venv/bin/python -m cloudoyabun export-scan ARTIFACT_ID --output scan.zip
+.venv/bin/python -m cloudoyabun restore-scan scan.zip
+```
+
+`restore-scan` creates an assessment from the archived name and scope by default; use `--assessment ASSESSMENT_ID` to restore into an existing one. See [operations](docs/operations.md#scan-archives-and-full-backups) for scope and limits.
 
 ## Guides
 

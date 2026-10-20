@@ -13,6 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .db import Database
 from .service import ConflictError, MAX_IMPORT_BYTES, Service
+from .archive import MAX_ARCHIVE_BYTES, ScanArchive
 
 
 class ComparisonInput(BaseModel):
@@ -89,6 +90,7 @@ class BulkTagsInput(BaseModel):
 def create_app(db_path=None):
     db = Database(db_path or os.environ.get("CLOUDOYABUN_DB", ".cloudoyabun/cloudoyabun.sqlite3"))
     service = Service(db)
+    archives = ScanArchive(db)
     app = FastAPI(title="CloudOyabun", version="0.1.0", docs_url=None, redoc_url=None)
     app.state.service = service
     token = secrets.token_urlsafe(32)
@@ -174,6 +176,29 @@ def create_app(db_path=None):
         item = service.artifact(artifact_id)
         return Response(item["content"], media_type="application/octet-stream",
                         headers={"Content-Disposition": f'attachment; filename="{artifact_id}.json"'})
+
+    @app.get("/api/artifacts/{artifact_id}/archive")
+    def export_scan(artifact_id: str):
+        return Response(archives.export(artifact_id), media_type="application/zip",
+                        headers={"Content-Disposition": f'attachment; filename="cloudoyabun-scan-{artifact_id}.zip"'})
+
+    @app.post("/api/assessments/{assessment_id}/restore")
+    async def restore_scan(assessment_id: str, request: Request):
+        content = bytearray()
+        async for chunk in request.stream():
+            content.extend(chunk)
+            if len(content) > MAX_ARCHIVE_BYTES:
+                return JSONResponse({"detail": "Scan archive exceeds the 64 MiB limit"}, status_code=413)
+        return await run_in_threadpool(archives.restore, bytes(content), assessment_id)
+
+    @app.get("/api/assessments/{assessment_id}/scan-archives")
+    def scan_archives(assessment_id: str):
+        service.assessment(assessment_id)
+        with db.connect() as con:
+            return [dict(row) for row in con.execute(
+                "SELECT a.id,a.name,a.adapter,a.sha256,r.status,r.started_at,COUNT(f.id) finding_count "
+                "FROM artifacts a JOIN runs r ON r.id=a.run_id LEFT JOIN findings f ON f.artifact_id=a.id "
+                "WHERE a.assessment_id=? GROUP BY a.id ORDER BY r.started_at DESC,a.id", (assessment_id,))]
 
     @app.get("/api/assessments/{assessment_id}/runs")
     def runs(assessment_id: str):
