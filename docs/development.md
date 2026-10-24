@@ -37,6 +37,7 @@ Use the returned finding ID and revision to record a decision:
 .venv/bin/python -m cloudoyabun scan-archives ASSESSMENT_ID
 .venv/bin/python -m cloudoyabun export-scan ARTIFACT_ID --output scan.zip
 .venv/bin/python -m cloudoyabun restore-scan scan.zip
+.venv/bin/python -m cloudoyabun retry-import FAILED_IMPORT_RUN_ID
 ```
 
 Each successful edit increments `revision`. A stale edit fails rather than overwriting another decision. Priority ranges from 0 (unset) to 4 (highest). Native severity remains a tool-owned value; current severity sorting is alphabetical and does not imply a universal severity ranking.

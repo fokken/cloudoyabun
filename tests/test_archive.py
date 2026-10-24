@@ -32,7 +32,15 @@ def test_archive_roundtrip_preserves_evidence_decisions_and_logs(service, assess
     assert detail["tags"] == ["reviewed"]
     assert len(detail["audit"]) == 1
     assert target.artifact(result["artifact_id"])["content"] == content
-    assert [e["type"] for e in target.events(result["run_id"])] == [e["type"] for e in service.events(imported["run"]["id"])]
+    events = target.events(result["run_id"])
+    assert [e["type"] for e in events[:-1]] == [e["type"] for e in service.events(imported["run"]["id"])]
+    assert events[-1]["type"] == "archive_restored"
+    mapping = events[-1]["details"]["id_mapping"]
+    assert mapping["artifacts"][original["artifact_id"]] == result["artifact_id"]
+    assert mapping["findings"][original["id"]] == item["id"]
+    assert mapping["runs"][imported["run"]["id"]] == result["run_id"]
+    assert mapping["assessments"][assessment["id"]] == result["assessment_id"]
+    assert events[0]["details"]["artifact_id"] == original["artifact_id"]
     again = ScanArchive(target.db).restore(archive, result["assessment_id"])
     assert again["reused"] and again["artifact_id"] == result["artifact_id"]
     assert len(target.finding(item["id"])["audit"]) == 1
@@ -88,3 +96,101 @@ def test_archive_http_download_and_restore(tmp_path, content):
         restored = client.post(f"/api/assessments/{other['id']}/restore", content=downloaded.content)
         assert restored.status_code == 200
         assert restored.json()["findings"] == 6
+
+
+def rewrite_archive(content, mutate):
+    with zipfile.ZipFile(io.BytesIO(content)) as source:
+        manifest = json.loads(source.read("manifest.json"))
+        artifact = source.read("artifact.bin")
+    mutate(manifest)
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w") as target:
+        target.writestr("manifest.json", json.dumps(manifest))
+        target.writestr("artifact.bin", artifact)
+    return output.getvalue()
+
+
+@pytest.mark.parametrize("path,value", [
+    (("import", "run", "command"), "not-json"),
+    (("import", "run", "command"), "{}"),
+    (("import", "run", "command"), '[1]'),
+    (("import", "run", "status"), "bogus"),
+    (("import", "events", 0, "seq"), 0),
+    (("import", "events", 0, "seq"), 2**63 - 1),
+    (("import", "events", 0, "details"), "null"),
+    (("import", "events", 0, "elapsed_ms"), -1),
+    (("findings", 0, "title"), []),
+    (("findings", 0, "title"), "bad\ud800"),
+    (("findings", 0, "report_order"), 2**64),
+    (("findings", 0, "audit", 0, "after_state"), "null"),
+    (("findings", 0, "audit", 0, "before_state"), "[]"),
+    (("findings", 0, "audit", 0, "after_state"), '{}'),
+    (("findings", 0, "payload"), '{"x": NaN}'),
+    (("findings", 0, "source_id"), None),
+])
+def test_invalid_archive_rejected_before_writes(service, assessment, content, tmp_path, path, value):
+    service.import_artifact(assessment["id"], "scan.json", content)
+    # Ensure every finding has history, regardless of display/export ordering.
+    for finding in service.findings(assessment["id"])["items"]:
+        service.triage(finding["id"], {"notes": "Reviewed"}, 0)
+    archive = ScanArchive(service.db).export(finding["artifact_id"])
+    def mutate(manifest):
+        item = manifest
+        for key in path[:-1]:
+            item = item[key]
+        item[path[-1]] = value
+    damaged = rewrite_archive(archive, mutate)
+    target = Service(Database(tmp_path / "rejected.sqlite3"))
+    with pytest.raises(ValueError):
+        ScanArchive(target.db).restore(damaged)
+    assert target.assessments() == []
+    with target.db.connect() as con:
+        for table in ("artifacts", "runs", "findings", "events", "audit"):
+            assert con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
+
+
+def test_legacy_archive_restores_with_explicit_provenance_limit(service, assessment, content):
+    service.import_artifact(assessment["id"], "scan.json", content)
+    finding = service.findings(assessment["id"])["items"][0]
+    archive = ScanArchive(service.db).export(finding["artifact_id"])
+    def legacy(manifest):
+        manifest["version"] = 1
+        for item in [manifest["assessment"], manifest["artifact"], manifest["import"], *manifest["sources"], *manifest["findings"]]:
+            item.pop("source_id")
+    result = ScanArchive(service.db).restore(rewrite_archive(archive, legacy))
+    event = service.events(result["run_id"])[-1]
+    assert event["type"] == "archive_restored"
+    assert event["details"]["legacy_ids_unavailable"] is True
+    assert event["details"]["id_mapping"]["findings"] == {}
+
+
+def test_reexport_keeps_mapping_chain(service, assessment, content):
+    service.import_artifact(assessment["id"], "scan.json", content)
+    original = service.findings(assessment["id"])["items"][0]
+    archives = ScanArchive(service.db)
+    first = archives.restore(archives.export(original["artifact_id"]))
+    second = archives.restore(archives.export(first["artifact_id"]))
+    events = service.events(second["run_id"], event_type="archive_restored")
+    assert len(events) == 2
+    assert events[0]["details"]["id_mapping"]["artifacts"][original["artifact_id"]] == first["artifact_id"]
+    assert events[1]["details"]["id_mapping"]["artifacts"][first["artifact_id"]] == second["artifact_id"]
+
+
+def test_invalid_archive_http_error_and_retry_token(tmp_path, content):
+    app = create_app(tmp_path / "validation.sqlite3")
+    service = app.state.service
+    assessment = service.create_assessment("Test", "Synthetic")
+    service.import_artifact(assessment["id"], "scan.json", content)
+    finding = service.findings(assessment["id"])["items"][0]
+    archive = ScanArchive(service.db).export(finding["artifact_id"])
+    damaged = rewrite_archive(archive, lambda m: m["import"]["run"].update(command="not-json"))
+    failed = service.import_artifact(assessment["id"], "bad.json", b"not-json")
+    retry_path = f"/api/runs/{failed['run']['id']}/retry-import"
+    with TestClient(app) as client:
+        assert client.post(retry_path).status_code == 403
+        client.headers["X-CloudOyabun-Token"] = client.get("/api/session").json()["token"]
+        assert client.post(f"/api/assessments/{assessment['id']}/restore", content=damaged).status_code == 400
+        response = client.post(retry_path)
+        assert response.status_code == 200
+        assert response.json()["run"]["status"] == "failed"
+        assert service.findings(assessment["id"])["total"] == 6

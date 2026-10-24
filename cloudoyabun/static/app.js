@@ -228,7 +228,9 @@ async function openFinding(id) {
 }
 async function saveTriage(event) {
   event.preventDefault();
-  const form = $("triage-form"), changes = {revision: state.finding.revision};
+  const finding = state.finding, assessment = state.assessment, detailRequest = state.detailRequest;
+  const current = () => state.assessment === assessment && state.finding === finding && state.detailRequest === detailRequest;
+  const form = $("triage-form"), changes = {revision: finding.revision};
   for (const key of ["disposition", "category", "notes"]) changes[key] = form.elements[key].value;
   changes.severity_override = form.elements.severity_override.value || null;
   changes.priority = Number(form.elements.priority.value);
@@ -237,12 +239,13 @@ async function saveTriage(event) {
   changes.selected = form.elements.selected.checked;
   const button = form.querySelector('[type="submit"]'); button.disabled = true;
   try {
-    await api("/findings/" + state.finding.id, jsonOptions("PATCH", changes));
-    selection.delete(state.finding.id);
+    await api("/findings/" + finding.id, jsonOptions("PATCH", changes));
+    if (state.assessment === assessment) { selection.delete(finding.id); updateSelection(); }
+    if (!current()) return;
     $("finding-dialog").close();
     notice("Analyst decision saved. Original tool evidence is unchanged.");
     await refreshOverview(); await loadFindings();
-  } catch (error) { $("save-status").textContent = error.message; }
+  } catch (error) { if (current()) $("save-status").textContent = error.message; }
   finally { button.disabled = false; }
 }
 async function loadRuns() {
@@ -259,6 +262,20 @@ async function loadRuns() {
     const button = element("button", `${run.tool} · ${run.kind}`);
     button.addEventListener("click", guarded(() => openRun(run)));
     content.append(button, element("small", `${new Date(run.started_at).toLocaleString()} · ${run.id.slice(0, 12)}${run.exit_code !== null ? " · exit " + run.exit_code : ""}`));
+    if (run.kind === "import" && ["failed", "interrupted"].includes(run.status)) {
+      const retry = element("button", "Retry import", "quiet");
+      retry.onclick = guarded(async () => {
+        retry.disabled = true;
+        try {
+          const result = await api(`/runs/${run.id}/retry-import`, {method: "POST"});
+          if (id !== state.assessment) return;
+          state.runsSignature = "";
+          notice(`Import retry ${result.run.status}: ${result.accepted} findings.`, result.run.status !== "succeeded");
+          await loadRuns(); await openRun(result.run);
+        } finally { retry.disabled = false; }
+      });
+      content.append(retry);
+    }
     card.append(content, badge(run.status)); $("run-list").append(card);
   }
   $("archive-list").replaceChildren();

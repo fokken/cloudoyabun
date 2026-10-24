@@ -79,6 +79,7 @@ To archive a scan, open **Execution log → Scan archives** and download its ZIP
 ```sh
 .venv/bin/python -m pytest -q
 node --check cloudoyabun/static/app.js
+node tests/ui_save.test.cjs
 ```
 
 Tests use synthetic scanner output, local executable doubles and mocked AI responses. They do not establish compatibility with every scanner/model version or verify real-cloud results. Rich report narratives and DOCX/PDF exports, team authentication, durable background jobs and crash recovery remain future work.

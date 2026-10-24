@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 from .db import Database
@@ -32,6 +33,9 @@ def main(argv=None):
     restore = sub.add_parser("restore-scan", help="Restore a portable scan archive")
     restore.add_argument("file", type=Path)
     restore.add_argument("--assessment", help="Restore into this assessment; default creates a new one")
+    retry = sub.add_parser("retry-import", help="Retry a failed or interrupted import with no findings")
+    retry.add_argument("run")
+    retry.add_argument("--recover-stopped", action="store_true", help="Confirm the worker has stopped and recover a stale running import; live recorded workers are refused")
     scan = sub.add_parser("scan", help="Run a predefined full scan or AzureHound collection")
     scan.add_argument("tool", choices=("prowler", "kubescape", "azurehound"))
     scan.add_argument("--assessment", required=True)
@@ -103,6 +107,8 @@ def main(argv=None):
             with args.file.open("rb") as source:
                 content = source.read(MAX_ARCHIVE_BYTES + 1)
             result = archives.restore(content, args.assessment)
+        elif args.action == "retry-import":
+            result = service.retry_import(args.run, recover_stopped=args.recover_stopped)
         elif args.action == "findings":
             result = service.findings(args.assessment, q=args.query, sort=args.sort, offset=args.offset)
         elif args.action == "triage":
@@ -124,7 +130,15 @@ def main(argv=None):
             return 0
         elif args.action == "report":
             result = service.create_report(args.assessment)
-            args.output.write_text(result.pop("content"), encoding="utf-8")
+            # Write privately before atomic replacement, including existing public files.
+            descriptor, temporary = tempfile.mkstemp(prefix=".cloudoyabun-report-", dir=args.output.parent)
+            try:
+                with os.fdopen(descriptor, "w", encoding="utf-8") as destination:
+                    destination.write(result.pop("content"))
+                os.replace(temporary, args.output)
+            finally:
+                if os.path.exists(temporary):
+                    os.unlink(temporary)
             result["output"] = str(args.output.resolve())
         elif args.action in ("run", "scan"):
             from .execution import execute

@@ -1,3 +1,17 @@
+# Fix verification — 2026-10-24
+
+Implemented the five issues from the October 20 source review:
+
+- Archive restore validates command/event JSON, analyst-history structure, scalar types, Unicode, integer ranges and v2 source IDs before database writes. Invalid archives leave no partial assessment. Version 1 remains supported.
+- Version 2 archives preserve original assessment, artifact, run and finding IDs. Restore logs an ID mapping and archive checksum without rewriting historical event content; repeated exports preserve the mapping chain. Export reads a consistent database snapshot and refuses active source runs.
+- Import failures receive a terminal status. Invalid Unicode records are diagnosed individually. Explicit retry is available through the CLI and API/UI for empty failed/interrupted imports, preserving evidence and logs. CLI recovery of stale running imports requires an operator confirmation flag and refuses live recorded workers; automatic crash recovery remains future work.
+- A finding save captures its finding and assessment context. Delayed successes and failures cannot close or overwrite feedback in a different dialog, or clear another finding's selection.
+- CLI report exports use private temporary files and atomic replacement, retaining mode 0600 for both new and replacement files.
+
+Regression coverage includes malformed archives with no database writes, v1 compatibility and repeated restore provenance, Unicode diagnostics, injected database failures and retries, live-worker recovery refusal, report permissions, and JavaScript tests for delayed save responses. The full Python suite passed (151 cases at that run), and all four JavaScript save-race checks passed. Targeted validation was rerun after final range checks. All tests use synthetic data; no cloud scans or model requests are needed.
+
+---
+
 # Project review — 2026-10-15
 
 Reviewed application services, API/CLI boundaries, scanner adapters, execution logging, persistence, AI handling, repeat-assessment matching, browser workflows, packaging and documentation. This is a source review and regression pass, not a penetration test or live scanner/model compatibility certification.

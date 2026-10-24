@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import os
 import re
 from pathlib import Path
 
@@ -66,15 +67,66 @@ class Service:
                 run_id = existing["run_id"]
                 artifact_id = existing["id"]
             else:
-                con.execute("INSERT INTO runs (id,assessment_id,tool,kind,status,started_at) VALUES (?,?,?,'import','running',?)",
-                            (run_id, assessment_id, parser.tool, now()))
+                con.execute("INSERT INTO runs (id,assessment_id,tool,kind,status,started_at,worker_pid) VALUES (?,?,?,'import','running',?,?)",
+                            (run_id, assessment_id, parser.tool, now(), os.getpid()))
                 con.execute("INSERT INTO artifacts VALUES (?,?,?,?,?,?,?,?)",
                             (artifact_id, assessment_id, run_id, Path(name).name, digest, adapter, parser.version, content))
             if source_run_id:
                 con.execute("INSERT OR IGNORE INTO artifact_sources VALUES (?,?)", (artifact_id, source_run_id))
         if existing:
             return self.import_result(run_id, reused=True)
+        return self._ingest(assessment_id, artifact_id, run_id, content, adapter, parser, digest)
+
+    def retry_import(self, run_id, recover_stopped=False):
+        """Explicitly retry a terminal, empty import without replacing analyst work."""
+        with self.db.connect() as con:
+            con.execute("BEGIN IMMEDIATE")
+            run = con.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+            if run is None:
+                raise KeyError("Run not found")
+            recovering = run["status"] == "running" and recover_stopped
+            if recovering and run["worker_pid"] is not None:
+                try:
+                    os.kill(run["worker_pid"], 0)
+                except ProcessLookupError:
+                    pass
+                except PermissionError:
+                    raise ConflictError("Cannot verify that the import worker has stopped") from None
+                else:
+                    raise ConflictError("Import worker is still alive; wait for it to finish")
+            if run["kind"] != "import" or (run["status"] not in ("failed", "interrupted") and not recovering):
+                raise ConflictError("Only failed or interrupted imports can be retried")
+            if con.execute("SELECT 1 FROM findings WHERE run_id=?", (run_id,)).fetchone():
+                raise ConflictError("This import contains findings; retry would risk analyst work")
+            artifact = con.execute("SELECT * FROM artifacts WHERE run_id=?", (run_id,)).fetchone()
+            if artifact is None:
+                raise ValueError("Import has no retained artifact")
+            parser = PARSERS.get(artifact["adapter"])
+            if parser is None or parser.version != artifact["parser_version"]:
+                raise ValueError("Parser version changed; import the original artifact as a new import")
+            con.execute("UPDATE runs SET status='running',ended_at=NULL,exit_code=NULL,worker_pid=? WHERE id=?", (os.getpid(), run_id))
+        return self._ingest(artifact["assessment_id"], artifact["id"], run_id, artifact["content"],
+                            artifact["adapter"], parser, artifact["sha256"], retry=True, recovered=recovering)
+
+    def _ingest(self, assessment_id, artifact_id, run_id, content, adapter, parser, digest, retry=False, recovered=False):
         journal = Journal(self.db, run_id)
+        try:
+            if retry:
+                journal.emit("import_retry", {"artifact_id": artifact_id, "recovered_stopped_run": recovered}, step="ingestion")
+            return self._parse_import(assessment_id, artifact_id, run_id, content, adapter, parser, digest, journal)
+        except (KeyboardInterrupt, SystemExit):
+            self.finish_run(run_id, "interrupted")
+            raise
+        except Exception as exc:
+            # Do not leave an ordinary processing failure permanently running.
+            try:
+                journal.emit("import_failed", {"error_type": type(exc).__name__,
+                             "error": "Import processing failed. Original artifact retained."}, step="ingestion", level="error")
+            finally:
+                self.finish_run(run_id, "failed")
+            return self.import_result(run_id)
+
+    def _parse_import(self, assessment_id, artifact_id, run_id, content, adapter, parser, digest, journal):
         journal.emit("artifact_saved", {"artifact_id": artifact_id, "sha256": digest, "bytes": len(content),
                                        "adapter": adapter, "parser_version": parser.version}, step="ingestion")
         try:
@@ -87,9 +139,13 @@ class Service:
         for entry in records:
             try:
                 metadata, provenance = parser.extract(entry.payload, entry.context)
+                # SQLite text and browser JSON require valid Unicode scalar values.
+                json.dumps(entry.payload, ensure_ascii=False).encode("utf-8")
+                json.dumps(metadata, ensure_ascii=False).encode("utf-8")
+                json.dumps(provenance, ensure_ascii=False).encode("utf-8")
                 accepted.append((entry.locator, entry.payload, metadata, provenance))
-            except ValueError as exc:
-                errors.append({"locator": entry.locator, "error": str(exc)})
+            except (ValueError, RecursionError) as exc:
+                errors.append({"locator": entry.locator, "error": "Record contains unsupported text or metadata" if isinstance(exc, (UnicodeError, RecursionError)) else str(exc)})
         with self.db.connect() as con:
             for locator, record, metadata, provenance in accepted:
                 row = dict(id=uid(), assessment_id=assessment_id, run_id=run_id,

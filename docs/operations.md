@@ -23,9 +23,15 @@ In the browser, open **Execution log → Scan archives** to download an imported
 .venv/bin/python -m cloudoyabun restore-scan scan.zip --assessment EXISTING_ASSESSMENT_ID
 ```
 
-The archive contains the exact imported result bytes, parsed finding records and analyst state, decision history, import events and associated scanner execution events. Restore creates new record IDs and does not need the original scanner or parser. A scan already present in the target assessment is reused without overwriting its current decisions. Archive uploads are limited to 64 MiB; the original result remains subject to the 25 MiB import limit. CLI exports create private files and refuse to overwrite an existing path.
+The archive contains the exact imported result bytes, parsed finding records and analyst state, decision history, import events and associated scanner execution events. Restore creates new record IDs and does not need the original scanner or parser. Version 2 archives record original IDs; an `archive_restored` event contains the original-to-restored ID mapping and archive checksum. Historical logs retain their original content. Version 1 archives still restore, but their missing original IDs are explicitly reported in that event. Exports use a consistent database snapshot and wait for associated runs to finish. A scan already present in the target assessment is reused without overwriting its current decisions. Archive uploads are limited to 64 MiB; the original result remains subject to the 25 MiB import limit. CLI exports create private files and refuse to overwrite an existing path.
 
 A scan archive is **not a full workspace backup**: it does not include report snapshots, AI analyses, comparisons, suppression rules, unrelated runs, or AzureHound's collection file (which remains for BloodHound). For a full backup before upgrading, stop the server and active CLI jobs, then copy the database and its adjacent `runs/` directory. If SQLite `-wal`/`-shm` files remain, preserve them alongside the database; do not copy only an actively written database file. Restore into a separate directory and verify it before replacing your working data. Full-workspace backup/restore and retention tooling are not implemented.
+
+Failed or interrupted imports with no findings can be retried from **Execution log → Retry import**, or with `cloudoyabun retry-import RUN_ID`. Retry preserves the original artifact and prior logs, requires the same parser version, and refuses to replace existing findings. Invalid Unicode records receive import diagnostics; unexpected processing failures end with a failed status.
+
+For an older import stuck at `running`, first verify its worker has stopped, then use `cloudoyabun retry-import RUN_ID --recover-stopped`. This explicit recovery refuses a recorded worker PID that is still alive. Older records without a worker PID rely on the operator's confirmation. Automatic crash recovery is still pending.
+
+CLI report exports are written to a private temporary file and atomically replaced with mode `0600`, including when replacing an existing report. Browser download permissions remain controlled by the browser and operating system.
 
 Treat backups, exports and AI snapshots as sensitive assessment data. Database and newly collected output use restrictive file permissions. Tool-native output can contain secrets even though execution logs redact configured secret values.
 
@@ -46,6 +52,6 @@ Treat backups, exports and AI snapshots as sensitive assessment data. Database a
 
 ## Checks for a deployment
 
-Run `.venv/bin/python -m pytest -q` and optionally `node --check cloudoyabun/static/app.js`. Tests do not contact clouds or real model servers. Validate representative real exports and an authorized scan in your environment, then test your chosen AI deployment with appropriate data.
+Run `.venv/bin/python -m pytest -q`, `node tests/ui_save.test.cjs`, and `node --check cloudoyabun/static/app.js`. Tests do not contact clouds or real model servers. Validate representative real exports and an authorized scan in your environment, then test your chosen AI deployment with appropriate data.
 
 Current limits: 25 MiB synchronous imports; SQLite BLOB artifact storage; no durable job queue, crash recovery, multi-user authentication, automatic retention or rich document export. Review [AI limits](ai.md) separately for model workloads.

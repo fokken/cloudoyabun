@@ -7,6 +7,7 @@ CloudOyabun is a modular local application using Python, FastAPI, SQLite and bun
 | Module | Responsibility |
 | --- | --- |
 | `db.py` | Schema migration, SQLite connections and record decoding |
+| `archive.py` | Versioned scan archives, validation, transactional restore and original-ID mappings |
 | `service.py` | Assessments, native imports, findings, analyst triage, audit and report snapshots |
 | `integrations/` | Tool-specific parsing and source-field metadata extraction |
 | `scans.py` | Validated broad presets, version probes and output discovery |

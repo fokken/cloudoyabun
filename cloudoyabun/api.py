@@ -208,6 +208,10 @@ def create_app(db_path=None):
     def events(run_id: str, after: int = Query(0, ge=0), source: str = "", level: str = "", event_type: str = "", q: str = ""):
         return service.events(run_id, after=after, source=source, level=level, event_type=event_type, q=q)
 
+    @app.post("/api/runs/{run_id}/retry-import")
+    def retry_import(run_id: str):
+        return service.retry_import(run_id)
+
     @app.get("/api/runs/{run_id}/logs")
     def logs(run_id: str):
         import json
