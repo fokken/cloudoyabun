@@ -8,6 +8,8 @@ Original bytes and SHA-256 are preserved. Reimporting identical bytes with the s
 
 ## 2. Investigate and triage
 
+Use **All check statuses** to filter by the tool's native result, such as PASS, FAIL, or skipped. Options come from the current assessment's imported results. The filter applies to flat findings, check groups, and their expanded records, and combines with the other filters. Changing it clears the checkbox selection and returns to the first page. Check status is separate from analyst disposition (confirmed, noise, or needs review).
+
 Group by check to browse repeated checks together; expand a group for individual records. Group provider and severity remain visible. Conflicting severity values display as Mixed. Severity columns and filters use the effective value: the analyst override when set, otherwise the original tool severity. Each row identifies Tool or Analyst override; groups show override counts and Mixed when effective values differ. Labels sort alphabetically. Finding details always show Original tool severity and Effective severity separately. Set an analyst override individually or in bulk; Use tool severity removes it. Overrides are audited and reports include both effective and original severity.
 
 Open a finding for native JSON, source artifact, metadata provenance, analyst notes and decision history. Set disposition, priority, category, tags, report order and report inclusion independently. Native status and analyst disposition are different: a tool's failed check is not automatically a confirmed report issue.

@@ -52,6 +52,7 @@ async function refreshOverview() {
   facet("tool", overview.facets.tool, "All tools");
   facet("provider", overview.facets.provider, "All providers");
   facet("severity", overview.facets.severity, "All severities");
+  facet("native_status", overview.facets.native_status, "All check statuses");
   facet("category", overview.facets.category, "All categories");
 }
 async function refreshAssessment() {
@@ -85,7 +86,7 @@ async function switchView(view) {
 }
 function findingParams() {
   const params = new URLSearchParams({suppression: $("suppression").value, q: $("search").value, sort: state.sort, direction: state.direction, limit: 50});
-  for (const key of ["tool", "provider", "severity", "disposition", "category", "tag"]) if ($(key).value) params.set(key, $(key).value);
+  for (const key of ["tool", "provider", "severity", "native_status", "disposition", "category", "tag"]) if ($(key).value) params.set(key, $(key).value);
   if ($("selected-only").checked) params.set("selected", "true");
   return params;
 }
@@ -343,7 +344,7 @@ $("assessment-form").onsubmit = async event => {
 $("assessment").onchange = guarded(async () => {
   state.assessment = $("assessment").value; ++state.request; ++state.logRequest;
   $("finding-dialog").close(); state.finding = null;
-  for (const key of ["search", "tool", "provider", "severity", "disposition", "category", "tag"]) $(key).value = "";
+  for (const key of ["search", "tool", "provider", "severity", "native_status", "disposition", "category", "tag"]) $(key).value = "";
   $("selected-only").checked = false; $("notice").hidden = true; await refreshAssessment();
 });
 document.querySelectorAll(".nav").forEach(button => button.onclick = guarded(() => switchView(button.dataset.view)));
@@ -351,7 +352,7 @@ document.querySelectorAll("[data-sort]").forEach(button => button.onclick = guar
   state.direction = state.sort === button.dataset.sort && state.direction === "asc" ? "desc" : "asc";
   state.sort = button.dataset.sort; state.offset = 0; await loadFindings();
 }));
-for (const key of ["suppression", "tool", "provider", "severity", "disposition", "category", "selected-only"]) $(key).onchange = guarded(async () => { clearSelection(); state.offset = 0; await loadFindings(); });
+for (const key of ["suppression", "tool", "provider", "severity", "native_status", "disposition", "category", "selected-only"]) $(key).onchange = guarded(async () => { clearSelection(); state.offset = 0; await loadFindings(); });
 let searchTimer;
 for (const key of ["search", "tag"]) $(key).oninput = () => { clearSelection(); ++state.request; clearTimeout(searchTimer); searchTimer = setTimeout(guarded(async () => { state.offset = 0; await loadFindings(); }), 200); };
 $("previous").onclick = guarded(async () => { state.offset = Math.max(0, state.offset - 50); await loadFindings(); });
